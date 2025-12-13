@@ -48,7 +48,7 @@ class AuthService {
       if (user == null) return "Failed to create user";
 
       // 2️⃣ Send email verification to user's Gmail
-      await user.sendEmailVerification();
+      //await user.sendEmailVerification();
 
       // 3️⃣ Store extra user data in Firestore
       await _firestore.collection('users').doc(user.uid).set({
@@ -95,7 +95,7 @@ class AuthService {
       if (user == null) return "User not found";
 
       // 2️⃣ Block login if email is not verified
-      if (!user.emailVerified) {
+   /*   if (!user.emailVerified) {
         await _auth.signOut(); // logout again
         return 'Please verify your email before logging in.';
       }
@@ -103,7 +103,7 @@ class AuthService {
       // 3️⃣ Update Firestore to mark user as verified
       await _firestore.collection('users').doc(user.uid).update({
         'emailVerified': true,
-      });
+      });*/
 
       return 'success';
 
@@ -123,30 +123,35 @@ class AuthService {
   // =============================================================================
   Future<String> signInWithGoogle() async {
     try {
-      // 🔄 Always logout Google first
-      // This forces Google to show the Gmail account chooser popup every time.
       await _googleSignIn.signOut();
 
-      // 1️⃣ Start Google Login flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final GoogleSignInAccount? googleUser =
+      await _googleSignIn.signIn();
 
-      // If user pressed "Cancel"
       if (googleUser == null) return "Cancelled";
 
-      // 2️⃣ Get token from Google login
       final googleAuth = await googleUser.authentication;
 
-      // 3️⃣ Create Google Firebase credential
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // 4️⃣ Login to Firebase using Google credentials
+      // 🔐 Firebase login
+      UserCredential userCredential =
       await _auth.signInWithCredential(credential);
 
-      return "success";
+      final user = userCredential.user;
+      if (user == null) return "Failed";
 
+      // ✅ SAVE USER IN FIRESTORE
+      await _firestore.collection("users").doc(user.uid).set({
+        "fullName": user.displayName ?? "Google User",
+        "email": user.email,
+        "createdAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return "success";
     } catch (e) {
       return e.toString();
     }
@@ -159,36 +164,40 @@ class AuthService {
   // =============================================================================
   Future<String> signInWithFacebook() async {
     try {
-      // 1️⃣ Show Facebook Login popup
-      final LoginResult result = await FacebookAuth.instance.login();
+      final LoginResult result =
+      await FacebookAuth.instance.login();
 
-      // If user cancels
-      if (result.status == LoginStatus.cancelled) {
-        return "Cancelled";
-      }
-
-      // If login fails
+      if (result.status == LoginStatus.cancelled) return "Cancelled";
       if (result.status == LoginStatus.failed) {
         return "Failed: ${result.message}";
       }
 
-      // 2️⃣ Extract the Facebook access token
       final accessToken = result.accessToken;
-      if (accessToken == null) return "No access token found";
+      if (accessToken == null) return "No access token";
 
-      // 3️⃣ Create Firebase credential using token
       final OAuthCredential credential =
       FacebookAuthProvider.credential(accessToken.token);
 
-      // 4️⃣ Sign in to Firebase using Facebook credentials
+      // 🔐 Firebase login
+      UserCredential userCredential =
       await _auth.signInWithCredential(credential);
 
-      return "success";
+      final user = userCredential.user;
+      if (user == null) return "Failed";
 
+      // ✅ SAVE USER IN FIRESTORE
+      await _firestore.collection("users").doc(user.uid).set({
+        "fullName": user.displayName ?? "Facebook User",
+        "email": user.email,
+        "createdAt": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      return "success";
     } catch (e) {
       return e.toString();
     }
   }
+
 
 
 

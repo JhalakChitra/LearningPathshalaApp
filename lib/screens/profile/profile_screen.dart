@@ -12,41 +12,59 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+
+  // Current logged-in Firebase user
   User? user = FirebaseAuth.instance.currentUser;
-  String name = "";
+
+  // Variables to store user data
+  String fullName = "";
   String email = "";
 
   @override
   void initState() {
     super.initState();
+
+    // Fetch user details when screen loads
     getUserDetails();
   }
 
+  /// Fetch user name & email from Firestore
   Future<void> getUserDetails() async {
-    if (user != null) {
-      final data = await FirebaseFirestore.instance
+    if (user == null) return;
+
+    try {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection("users")
           .doc(user!.uid)
           .get();
 
+      if (!userDoc.exists) {
+        debugPrint("User document does not exist");
+        return;
+      }
+
+      final data = userDoc.data() as Map<String, dynamic>;
+
       setState(() {
-        name = data["name"] ?? "";
+        fullName = data["fullName"] ?? "No Name";
         email = data["email"] ?? "";
       });
+    } catch (e) {
+      debugPrint("Error fetching user data: $e");
     }
   }
 
+
+  /// Logout user from app
   Future<void> logout(BuildContext context) async {
-    // Firebase logout
+    // Firebase sign out
     await FirebaseAuth.instance.signOut();
 
-    // Clear local session data
+    // Clear saved session data
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove("onboarding_seen");
-    await prefs.remove("loggedIn");
-    await prefs.clear(); // full clean (optional but safe)
+    await prefs.clear(); // Clears all stored values
 
-    // Go to login page
+    // Navigate to Login screen and remove previous screens
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -65,6 +83,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
+
+            // Profile icon
             const CircleAvatar(
               radius: 45,
               backgroundColor: Colors.deepPurple,
@@ -74,20 +94,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.white,
               ),
             ),
+
             const SizedBox(height: 10),
 
+            // User Name
             Text(
-              name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              fullName.isNotEmpty ? fullName : "Loading...",
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+
             const SizedBox(height: 5),
 
+            // User Email
             Text(
               email,
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
             ),
+
             const SizedBox(height: 30),
 
+            // Settings option
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text("Settings"),
@@ -96,6 +128,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const Divider(),
 
+            // Privacy policy option
             ListTile(
               leading: const Icon(Icons.privacy_tip),
               title: const Text("Privacy Policy"),
@@ -106,6 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const Spacer(),
 
+            // Logout button
             ElevatedButton.icon(
               onPressed: () => logout(context),
               icon: const Icon(Icons.logout),
